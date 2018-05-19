@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2013,2014 Marko Dimjašević, Simone Atzeni, Ivo Ugrina, Zvonimir Rakamarić
 #
@@ -17,11 +17,35 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with maline.  If not, see <http://www.gnu.org/licenses/>.
 
-CURR_PID=$$
-TMP_DIR=$MALINE/.getAppStartEvent-$CURR_PID
-$MALINE/lib/apktool/apktool d $1 $TMP_DIR 1>/dev/null 2>/dev/null
-filename=$TMP_DIR/AndroidManifest.xml
-echo $filename
-event=$(grep -e "category" $filename | grep -o -P '(?<=category android:name=").*(?=\")' | grep LAUNCHER)
-echo $event
-rm -rf $TMP_DIR
+if [ "$#" -lt 1 ]; then
+    echo "Usage: find-log-intersection.sh LIST-OF-EXPERIMENTS-LOG-DIRS"
+    exit 1
+fi
+
+explist=$1
+dirint=$(dirname $explist)
+
+while read line
+do
+    dir=$line
+    name=$(echo $dir | awk -F"/android-logs" '{ print $1}' | awk -F/ '{ print $NF}' )
+    find $dir -name "*.log" | awk -F/ '{ print $NF }' | awk -F"-" '{ print $2"-"$3}' | sort | uniq > $dirint/$name.int
+done < $explist
+
+FILES=$dirint/*.int
+intersection=/tmp/intersection-$(date +"%s").txt
+first=1
+for file in $FILES
+do
+    if [ $first -eq 0 ]; then
+	comm -12 $intersection $file > $intersection.tmp
+	mv $intersection.tmp $intersection
+    else
+	cat $file > $intersection
+	first=0
+    fi
+done
+
+cat $intersection
+rm -f $intersection
+rm -f $dirint/*.int
